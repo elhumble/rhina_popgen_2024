@@ -1,0 +1,13 @@
+.DS_Store
+.Rapp.history
+.Rhistory
+.Rproj.user/
+/admin
+/data/dart_raw
+/data/marmap
+/data/out
+/doc
+/figs
+/LAB
+9.0_across_sp.R
+9.0_sample_prep.R
