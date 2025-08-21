@@ -2,7 +2,7 @@
 
 **Analysis code for:**
 -------------
-Kipperman M, Jabado RM, Haque AB, Fernando D, Anjani PADL, Spaet JLY, Humble E **Population structure and genetic diversity of the Critically Endangered bowmouth guitarfish (<i> Rhina ancylostomus</i> in the Northwest Indian Ocean.**
+Kipperman M, Jabado RM, Haque AB, Fernando D, Anjani PADL, Spaet JLY, Humble E (2025) **Population structure and genetic diversity of the Critically Endangered bowmouth guitarfish <i> Rhina ancylostomus</i> in the Northwest Indian Ocean.**
 
 **Summary**
 -------------
