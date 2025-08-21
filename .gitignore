@@ -1,6 +1,7 @@
 .DS_Store
 .Rapp.history
 .Rhistory
+.RData
 .Rproj.user/
 /admin
 /data/dart_raw
@@ -11,3 +12,8 @@
 /LAB
 9.0_across_sp.R
 9.0_sample_prep.R
+"Icon\r"
+extraparams
+jobs.txt
+results_summary.csv
+seed.txt
