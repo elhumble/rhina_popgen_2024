@@ -15,11 +15,16 @@ library(ggplot2)
 library(patchwork)
 source("scripts/theme_emily.R")
 
+
 #~~ Metadata and output files
 
 meta <- fread("data/meta/rhina_metadata.csv")
 
-sfiles <- list.files("data/out/structure/", full.names = T, pattern = "_f")
+path_to_out <- "data/out/structure"
+path_to_out <- "data/out/structure_sub"
+
+
+sfiles <- list.files(path_to_out, full.names = T, pattern = "_f")
 slist <- readQ(files = sfiles, filetype="structure", indlabfromfile = T)
 tr1 <- tabulateQ(qlist=slist)
 sr1 <- summariseQ(tr1)
@@ -27,11 +32,12 @@ em <- evannoMethodStructure(data=sr1)
 
 #~~ Get clumpp input
 
-clumppExport(qlist=slist, exportpath="data/out/structure/")
+clumppExport(qlist=slist, exportpath=path_to_out)
 
 # Move to EDDIE to run CLUMPP (can't run CLUMPP on local). See workflow.
 
 # scp -r data/out/structure/pop_K* ehumble@eddie.ecdf.ed.ac.uk:/exports/cmvm/eddie/eb/groups/ogden_grp/emily/rhina/
+# scp -r data/out/structure_sub/pop_K* ehumble@eddie.ecdf.ed.ac.uk:/exports/cmvm/eddie/eb/groups/ogden_grp/emily/rhina/
 
 # On EDDIE qlogin
 
@@ -53,7 +59,8 @@ clumppExport(qlist=slist, exportpath="data/out/structure/")
 # Read in combined CLUMPP output
   
 # scp ehumble@eddie.ecdf.ed.ac.uk:/exports/cmvm/eddie/eb/groups/ogden_grp/emily/rhina/*-combined-merged.txt data/out/structure/
-  
+# scp ehumble@eddie.ecdf.ed.ac.uk:/exports/cmvm/eddie/eb/groups/ogden_grp/emily/rhina/*-combined-merged.txt data/out/structure_sub/
+
 # Ks and log likelihoods
   
 deltak <- ggplot(em, aes(x = k, y = deltaK)) +
@@ -65,7 +72,9 @@ deltak <- ggplot(em, aes(x = k, y = deltaK)) +
         axis.title.y = element_text(face = "plain")) +
   labs(x = "K", y = expression(paste(Delta,italic("K")))) +
   scale_x_continuous(breaks=c(1:6), labels=c(1:6),limits=c(1,6)) +
-  theme_emily()
+  theme_emily() +
+  labs(title = "A")
+
 
 loglike <- ggplot(em, aes(x=k, y = elpdmean)) +
   geom_point(size = 1, col = "grey30") + # 1/1.5
@@ -77,16 +86,27 @@ loglike <- ggplot(em, aes(x=k, y = elpdmean)) +
         axis.title.y = element_text(face = "plain")) +
   labs(x = "K", y = expression(paste("Ln Pr(",italic("X"),"|",italic("K"),")"))) +
   scale_x_continuous(breaks=c(1:6), labels=c(1:6),limits=c(1,6)) +
-  theme_emily()
+  theme_emily() +
+  labs(title = "B")
+
+
+deltak + loglike
+
+ggsave("figs/structure_sub_Ks.png",
+       deltak + loglike,
+       width = 8, height = 3)
 
 ggsave("figs/structure_Ks.png",
        deltak + loglike,
        width = 8, height = 3)
 
+saveRDS(deltak, "figs/deltak_sub.RDS")
+saveRDS(loglike, "figs/loglike_sub.RDS")
 
 #~~ Plotting
 
 data_path <- "data/out/structure"
+data_path <- "data/out/structure_sub"
 
 files <- dir(data_path, pattern = ".txt")
 
@@ -96,7 +116,7 @@ data <- tibble(filename = files) %>%
 
 inds <- fread("data/out/structure/results_job_T1_1_q") %>%
   dplyr::select(V1) %>%
-  rename(ID = V1)
+  dplyr::rename(ID = V1)
 
 # Drop last column from each dataframe
 
@@ -122,7 +142,7 @@ K2 <- filter(data_plot, grepl("K2", filename)) %>%
   mutate(ID = as.factor(ID),
          name = as.factor(name))
 
-# Some number for K = 2
+# Some numbers for K = 2
 
 K2 %>%
   filter(pop == "OMAN" | pop == "SA") %>%
@@ -296,6 +316,26 @@ k8_plot <- ggplot(K8, aes(factor(ID), value, fill = factor(name))) +
 
 k2_plot + k3_plot + k4_plot + k5_plot + k6_plot + k7_plot + k8_plot + plot_layout(ncol = 1)
 
+# Updated figure for manuscript
+
+k2_panel <- ggplot(K2, aes(value, factor(ID), fill = factor(name))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(rows = vars(fct_inorder(pop)), switch = "y", scales = "free", space = "free") +
+  theme_minimal() + labs(y = "Individuals", title = "B", x = "K=2") +
+  scale_fill_manual(values = col_palette) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_discrete(expand = expansion(add = 1)) +
+  theme(panel.spacing.x = unit(0.1, "lines"),
+        axis.text.x =  element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        strip.text.x = element_blank(),
+        plot.title = element_text(size=10),
+        panel.grid = element_blank(),
+        legend.position = "none")
+
+# Save figure files
+
 saveRDS(k2_plot, "figs/structure_K2_plot.RDS")
 saveRDS(k3_plot, "figs/structure_K3_plot.RDS")
 saveRDS(k4_plot, "figs/structure_K4_plot.RDS")
@@ -303,9 +343,24 @@ saveRDS(k5_plot, "figs/structure_K5_plot.RDS")
 saveRDS(k6_plot, "figs/structure_K6_plot.RDS")
 saveRDS(k7_plot, "figs/structure_K7_plot.RDS")
 saveRDS(k8_plot, "figs/structure_K8_plot.RDS")
+saveRDS(k2_panel, "figs/structure_K2_panel.RDS")
+
+
+saveRDS(k2_plot, "figs/structure_sub_K2_plot.RDS")
+saveRDS(k3_plot, "figs/structure_sub_K3_plot.RDS")
+saveRDS(k4_plot, "figs/structure_sub_K4_plot.RDS")
+saveRDS(k5_plot, "figs/structure_sub_K5_plot.RDS")
+saveRDS(k6_plot, "figs/structure_sub_K6_plot.RDS")
+saveRDS(k7_plot, "figs/structure_sub_K7_plot.RDS")
+saveRDS(k8_plot, "figs/structure_sub_K8_plot.RDS")
 
 
 ggsave("figs/structure_rhina.png",
+       k2_plot + k3_plot + k4_plot + k5_plot + k6_plot + k7_plot + k8_plot + plot_layout(ncol = 1),
+       width = 6, height = 10)
+
+
+ggsave("figs/structure_sub_rhina.png",
        k2_plot + k3_plot + k4_plot + k5_plot + k6_plot + k7_plot + k8_plot + plot_layout(ncol = 1),
        width = 6, height = 10)
 

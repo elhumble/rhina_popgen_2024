@@ -1,9 +1,12 @@
-library(dartR)
+library(dartRverse)
+library(dartR.popgen)
 library(data.table)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(forcats)
 source("scripts/theme_emily.R")
+
 
 dartfile <- "data/raw/OrderAppendix_2_DRhin22-7571/Report_DRhin22-7571_SNP_1.csv"
 metadata <- "data/meta/rhina_metadata.csv"
@@ -18,7 +21,6 @@ gl <- gl.drop.ind(
                "ID67", 
                "ID68", 
                "ID69"))
-
 
 # metrics
 
@@ -149,16 +151,16 @@ gl_plink <- gl_sec_het
 
 gl_plink@chromosome <- chr$chr
 
-dartR::gl2plink(gl_plink,
-                plink_path = "/Users/emilyhumble/software",
-                bed_file = T,
+gl2plink(gl_plink,
+                plink.bin.path = "/Users/emilyhumble/software/plink_mac_20241022/",
+                bed.files = T,
                 outfile = "relatedness",
                 outpath = "data/out/plink/",
-                pos_cM = "0",
-                ID_dad = "0",
-                ID_mom = "0",
-                sex_code = "unknown",
-                phen_value = "0",
+                pos.cM = "0",
+                ID.dad = "0",
+                ID.mum = "0",
+                sex.code = "unknown",
+                phen.value = "0",
                 verbose = 3)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -221,7 +223,6 @@ ggsave("figs/relatedness_rhina.png", relate_fig, height = 4, width = 5)
 
 gl.report.callrate(gl_sec_het, method="ind")
 
-
 # drop related individuals
 
 gl_sec_het_rel <- gl.drop.ind(gl_sec_het,
@@ -252,6 +253,7 @@ ind_het <- gl.report.heterozygosity(
 
 nLoc(gl_sec_het_rel) # 6284
 nInd(gl_sec_het_rel) # 49
+
 
 #~~~~~~~~~~~~~~~~~~~~~~#
 #         PCA          #
@@ -426,8 +428,8 @@ ggplot(data = ind_coords, aes(x = Axis1, y = Axis2)) +
 
 gl_sec_het_rel_maf@pop <- as.factor(ggplot_pca$location)
 
-fst <- dartR::gl.fst.pop(gl_sec_het_rel_maf, nboots=1000, percent=95, nclusters=1)
-pw_fst_boot_alf <- fst$Bootstraps[,c(1,2,1003:1006)]
+fst <- gl.fst.pop(gl_sec_het_rel_maf, nboots=1000, percent=95, nclusters=1)
+pw_fst_boot <- fst$Bootstraps[,c(1,2,1003:1006)]
 
 # Get upper triangle of the correlation matrix
 get_upper_tri <- function(cormat){
@@ -445,7 +447,21 @@ melted_cor <- fst$Fsts[c(1,2,3),c(1,2,3)] # Remove saudi and bangladesh due to s
 melted_cor <- fst$Fsts[c(4,2,1,3,5),c(4,2,1,3,5)] # Reorder geographically
 
 upper_tri <- get_upper_tri(melted_cor)
-melted_cormat <- melt(upper_tri, na.rm = TRUE)
+melted_cormat <- reshape2::melt(upper_tri, na.rm = TRUE)
+
+melted_cormat <- melted_cormat %>%
+  mutate(Var1 = case_when(Var1 == "Saudi Arabia" ~ "SA",
+                          Var1 == "Sri Lanka" ~ "SL",
+                          Var1 == "Oman" ~ "OMAN",
+                          TRUE ~ Var1)) %>%
+  mutate(Var2 = case_when(Var2 == "Saudi Arabia" ~ "SA",
+                          Var2 == "Sri Lanka" ~ "SL",
+                          Var2 == "Oman" ~ "OMAN",
+                          Var2 == "Bangladesh" ~ "BAN",
+                          TRUE ~ Var2)) %>%
+  mutate(Var1 = fct_relevel(Var1, "SA", "OMAN", "UAE", "SL"),
+         Var2 = fct_relevel(Var2, "OMAN", "UAE", "SL", "BAN"))
+
 
 fst_plot <- ggplot(melted_cormat, aes(Var1, Var2, fill = value)) +
   geom_tile(color = "white") +
@@ -458,14 +474,47 @@ fst_plot <- ggplot(melted_cormat, aes(Var1, Var2, fill = value)) +
         axis.line.x = element_blank(),
         axis.title.x = element_blank(),
         axis.title.y = element_blank()) +
-  coord_fixed()
+  coord_fixed() +
+  ggtitle("A")
+
 
 fst_plot
 
 
 ggsave("figs/FST_rhina_SNPs.png", fst_plot, height = 4, width = 5)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# Plotting CIs
+
+fst_cis <- pw_fst_boot %>%
+  unite(Pairwise, c("Population1", "Population2")) %>%
+  mutate(Pairwise = fct_reorder(Pairwise, desc(Fst))) %>%
+  mutate(sig = as.factor(case_when(`Lower bound CI limit` < 0 & `Upper bound CI limit` > 0 ~ 1,
+                                   TRUE ~ 0))) %>%
+  filter(!grepl("AP", Pairwise)) %>%
+  mutate(col =  "black") %>%
+  mutate(model = paste0("<span style=\"color: ", col, "\">", Pairwise, "</span>")) %>%
+  ggplot(aes(Fst, fct_reorder(model, Fst), col = sig, fill = sig)) +
+  geom_pointrange(aes(xmax = `Upper bound CI limit`, xmin = `Lower bound CI limit`), 
+                  size = 0.3, 
+                  position=position_dodge(0.2)) +
+  geom_vline(xintercept = 0) +
+  scale_color_manual(values = c("black", "grey70"), name = "Significant") +
+  theme_emily() +
+  theme(legend.position = "none",
+        plot.margin = unit(c(1,0.5,0.5,0.5), "cm"),
+        axis.line.y = element_blank(),
+        axis.title.y = element_blank(),
+        plot.title = element_text(size = 12),
+        axis.text.y = ggtext::element_markdown()) +
+  ggtitle("B") + xlab(expression(italic("F")[ST]))
+
+fst_cis
+
+ggsave("figs/FST_CIs_rhina_SNPs.png", fst_cis, height = 5, width = 5)
+ggsave("figs/FST_panel_rhina.png", fst_plot + fst_cis, height = 6, width = 10)
+
+
+ #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #           Admixture           #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -480,28 +529,28 @@ gl_plink <- gl_sec_het_rel_maf
 
 gl_plink@chromosome <- chr$chr
 
-dartR::gl2plink(gl_plink,
-                plink_path = "/Users/emilyhumble/software",
-                bed_file = T,
+gl2plink(gl_plink,
+                plink.bin.path = "/Users/emilyhumble/software",
+                bed.file = T,
                 outfile = "gl_sec_het_rhina",
                 outpath = "data/out/plink",
-                pos_cM = "0",
-                ID_dad = "0",
-                ID_mom = "0",
-                sex_code = "unknown",
-                phen_value = "0",
+                pos.cM = "0",
+                ID.dad = "0",
+                ID.mum = "0",
+                sex.code = "unknown",
+                phen.value = "0",
                 verbose = 3)
 
 #~~ Run admixture
 
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 1 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_1.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 2 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_2.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 3 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_3.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 4 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_4.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 5 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_5.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 6 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_6.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 7 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_7.out")
-system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/plink/gl_sec_het_rhina.bed 8 -j4 > /Users/emilyhumble/Library/CloudStorage/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth_dart/data/out/admixture/gl_sec_het_rhina_admixture_8.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 1 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_1.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 2 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_2.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 3 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_3.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 4 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_4.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 5 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_5.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 6 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_6.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 7 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_7.out")
+system("/Users/emilyhumble/software/admixture_macosx-1.3.0/admixture --cv -B1000 /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/plink/gl_sec_het_rhina.bed 8 -j4 > /Users/emilyhumble/Dropbox/congen/PROJECTS/IO_elasmo/bowmouth/rhina_popgen_2024/data/out/admixture/gl_sec_het_rhina_admixture_8.out")
 
 
 # output files always saved in working directory, move to /admixture
@@ -514,7 +563,10 @@ system("grep 'CV' data/out/admixture/gl*out | awk '{print $3,$4}' | sed -e 's/(/
 #     Downsample individuals      #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
+meta <- fread(metadata)
+
 set.seed(123)
+
 inds <- tibble(id = gl_sec_het_rel_maf@ind.names) %>%
   left_join(meta, by = "id") %>%
   mutate(location = case_when(grepl("oman", pop) ~ "oman",
@@ -526,7 +578,7 @@ inds <- tibble(id = gl_sec_het_rel_maf@ind.names) %>%
                               grepl("srilanka", pop) ~ "srilanka",
                               grepl("bangladesh", pop) ~ "bangladesh")) %>%
   filter(location == "uae") %>%
-  sample_n(33-10, replace = F)
+  slice_sample(n = 33-8, replace = F) # keeping 8 individuals
 
 uae_remove <- inds$id
 
@@ -536,6 +588,7 @@ gl_sec_het_rel_maf_drop <- gl.drop.ind(gl_sec_het_rel_maf,
 gl_sec_het_rel_maf_drop <- gl.filter.monomorphs(gl_sec_het_rel_maf_drop)
 gl_sec_het_rel_maf_drop <- gl.recalc.metrics(gl_sec_het_rel_maf_drop) 
 nLoc(gl_sec_het_rel_maf_drop)
+nInd(gl_sec_het_rel_maf_drop)
 
 # edit gl object prior to converting to plink
 
@@ -548,16 +601,16 @@ gl_plink <- gl_sec_het_rel_maf_drop
 
 gl_plink@chromosome <- chr$chr
 
-dartR::gl2plink(gl_plink,
-                plink_path = "/Users/emilyhumble/software",
-                bed_file = T,
+gl2plink(gl_plink,
+                plink.bin.path = "/Users/emilyhumble/software",
+                bed.file = T,
                 outfile = "gl_sec_het_rhina_drop",
                 outpath = "data/out/plink/",
-                pos_cM = "0",
-                ID_dad = "0",
-                ID_mom = "0",
-                sex_code = "unknown",
-                phen_value = "0",
+                pos.cM = "0",
+                ID.dad = "0",
+                ID.mum = "0",
+                sex.code = "unknown",
+                phen.value = "0",
                 verbose = 3)
 
 

@@ -7,6 +7,7 @@ library(ggplot2)
 library(gghalves)
 library(patchwork)
 source("scripts/theme_emily.R")
+library(ggside)
 
 # get raw plink from plink files
 # calc sMLH
@@ -82,25 +83,43 @@ ggsave("figs/het_rhina.png", het_plot, height = 3, width = 4)
 
 #~~ Plotting for manuscript
 
-K2_plot <- readRDS("figs/structure_K2_plot.RDS")
-K3_plot <- readRDS("figs/structure_K3_plot.RDS")
-K4_plot <- readRDS("figs/structure_K4_plot.RDS")
-K5_plot <- readRDS("figs/structure_K5_plot.RDS")
-K6_plot <- readRDS("figs/structure_K6_plot.RDS")
-K7_plot <- readRDS("figs/structure_K7_plot.RDS")
-K8_plot <- readRDS("figs/structure_K8_plot.RDS")
+k2_plot <- readRDS("figs/structure_K2_plot.RDS")
+k3_plot <- readRDS("figs/structure_K3_plot.RDS")
+k4_plot <- readRDS("figs/structure_K4_plot.RDS")
+k5_plot <- readRDS("figs/structure_K5_plot.RDS")
+k6_plot <- readRDS("figs/structure_K6_plot.RDS")
+k7_plot <- readRDS("figs/structure_K7_plot.RDS")
+k8_plot <- readRDS("figs/structure_K8_plot.RDS")
+
+K2_panel <- readRDS("figs/structure_K2_panel.RDS")
 
 pca_12 <- readRDS("figs/PCA_rhina_12.RDS")
 
 
 fig_3 <- ((pca_12 / het_plot + plot_layout(guides = 'auto')) | 
-            K2_plot / K3_plot / K4_plot / K5_plot / K6_plot) + 
+            k2_plot / k3_plot / k4_plot / k5_plot / k6_plot) + 
   plot_layout(guides = 'collect', widths = c(1.5, 1))
 
 fig_3
 
 ggsave("figs/fig_3.png", fig_3, height = 7, width = 7)
 
+# Alternative figure
+
+fig_3 <- ((pca_12 / het_plot + plot_layout(guides = 'auto')) | 
+            K2_panel) + 
+  plot_layout(guides = 'collect', widths = c(1.5, 1))
+
+fig_3
+
+ggsave("figs/fig_3_alt.png", fig_3, height = 7, width = 7)
+
+# Supplementary Figure
+
+sup_fig <- k2_plot / k3_plot / k4_plot / k5_plot / k6_plot + 
+  plot_layout(guides = 'collect', widths = c(1.5, 1))
+
+ggsave("figs/fig_structure.png", sup_fig, height = 7, width = 4)
 
  #~~ Without Bangladesh
 
@@ -116,26 +135,5 @@ ggplot(filter(MLH, location !="bangladesh"), aes(as.factor(location), MLH, fill 
         axis.title.x = element_blank()) +
   labs(x = "Species", y = "Multi-locus heterozygosity")
 
-
-ID22, ID24, ID58, ID19, ID62, ID54, ID35
-
-ID22 het outlier
-ID24 het outlier
-ID58 het outlier
-ID19
-ID62
-ID54: 
-ID35: high missing values
-
-
-# Het outliers
-# ID25*
-# ID33
-# ID58*
-# ID20
-# ID28
-# ID29
-# ID22*
-# ID24*
 
 hist(MLH$MLH)

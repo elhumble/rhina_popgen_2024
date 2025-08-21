@@ -16,6 +16,8 @@ library(geosphere)
 library(ggtext)
 library(vegan)
 library(adespatial)
+library(extrafont)
+font_import()
 source("scripts/theme_emily.R")
 
 
@@ -205,14 +207,10 @@ ibd_cr <- ggplot(df_dist_cr) +
 
 ibd_cr
 
-#saveRDS(ibd_alf, "figs/ibd_alf.RDS")
-
 
 #~~ Plotting for manuscript
 
 ibd_coi + ibd_cr
-
-#ggsave("figs/IBD.png", ibd_alf + ibd_bir, width = 7, height = 3)
 
 man_coi
 r1_coi
@@ -233,7 +231,8 @@ get_upper_tri <- function(cormat){
 rownames(pw_fst_coi) <- colnames(pw_fst_coi)
 pw_fst_coi <- pw_fst_coi[c(5,1,3,2,4),c(5,1,3,2,4)]
 coi_upper_tri <- as.matrix(get_upper_tri(pw_fst_coi))
-coi_melted_cormat <- melt(coi_upper_tri, na.rm = TRUE)
+coi_melted_cormat <- reshape2::melt(coi_upper_tri, na.rm = TRUE) %>%
+  filter(value != 0)
 
 coi_fst_plot <- ggplot(coi_melted_cormat, aes(Var1, Var2, fill = value)) +
   geom_tile(color = "white") +
@@ -257,7 +256,8 @@ coi_fst_plot
 rownames(pw_fst_cr) <- colnames(pw_fst_cr)
 pw_fst_cr <- pw_fst_cr[c(5,1,3,2,4),c(5,1,3,2,4)]
 cr_upper_tri <- as.matrix(get_upper_tri(pw_fst_cr))
-cr_melted_cormat <- melt(cr_upper_tri, na.rm = TRUE)
+cr_melted_cormat <- reshape2::melt(cr_upper_tri, na.rm = TRUE) %>%
+  filter(value != 0)
 
 cr_fst_plot <- ggplot(cr_melted_cormat, aes(Var1, Var2, fill = value)) +
   geom_tile(color = "white") +
@@ -279,9 +279,15 @@ cr_fst_plot
 
 #~~ PLOTTING FOR MANUSCRIPT
 
-
 ggsave("figs/coi_fst_ibd.png", coi_fst_plot + ibd_coi + 
          plot_layout(ncol = 2,
                      widths = c(1, 1),
                      heights = c(1.5, 1)), 
        width = 8, height = 5)
+
+ggsave("figs/coi_fst_ibd.pdf", coi_fst_plot + ibd_coi + 
+         plot_layout(ncol = 2,
+                     widths = c(1, 1),
+                     heights = c(1.5, 1)), 
+       width = 8, height = 5)
+

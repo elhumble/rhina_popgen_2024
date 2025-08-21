@@ -112,6 +112,7 @@ m_rhina <- ggplot() +
    #       subtitle = expression(paste("Bowmouth Guitarfish ", italic("(Rhina ancylostoma)"))))
 
 ggsave("figs/map_rhina.png", m_rhina, width = 10, height = 5)
+ggsave("figs/map_rhina.pdf", m_rhina, width = 10, height = 5)
 
  # Distribution only
 
